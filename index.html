@@ -870,10 +870,16 @@ input[type=range]{padding:5px 0;cursor:pointer;accent-color:var(--gold)}
   transition:border-color .15s}
 .share-close:hover{border-color:var(--gold)}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const supabaseClient = supabase.createClient("https://lyxptmhzlvcfgjutecxn.supabase.co", "sb_publishable_VzB5Ti95E4ErgedrpJd4EA_brIP_fzl");
+  async function loginWithGoogle(){ await supabaseClient.auth.signInWithOAuth({ provider: "google" }); }
+</script>
 </head>
 <body>
 
 <nav>
+<button onclick="loginWithGoogle()" style="background:#f5c842;color:#000;padding:8px 16px;border-radius:8px;border:none;cursor:pointer;font-weight:600;margin-right:10px">Login Google</button>
   <div class="nav-logo">
     <div class="nav-logo-icon">⚡</div>
     <span class="nav-logo-text">Agente Pick Pro</span>
@@ -1163,7 +1169,7 @@ input[type=range]{padding:5px 0;cursor:pointer;accent-color:var(--gold)}
         <select id="ou-wind-dir">
           <option value="none">Sin viento significativo</option>
           <option value="out">Hacia jardín (+scoring)</option>
-          <option value="in">Hacia plato (−scoring)</option>
+          <option value="in">Hacia plato (-scoring)</option>
           <option value="cross">Cruzado (neutro)</option>
         </select>
       </div>
@@ -2305,28 +2311,28 @@ function analyzeOU(){
   const pitA=document.getElementById('ou-pitcher-away').value;
   if(!total){toast('⚠ Ingresa la línea total');return}
   let score=50;const factors=[];
-  if(weather==='rain'){score-=8;factors.push('🌧 Lluvia reduce scoring (−8)')}
+  if(weather==='rain'){score-=8;factors.push('🌧 Lluvia reduce scoring (-8)')}
   if(weather==='dome')factors.push('🏟 Domo / interior — clima neutro');
-  if(temp<50){score-=5;factors.push(`🥶 Temperatura baja ${temp}°F (−5)`)}
+  if(temp<50){score-=5;factors.push(`🥶 Temperatura baja ${temp}°F (-5)`)}
   if(temp>85){score+=3;factors.push(`🌡 Calor (${temp}°F) — bolas más activas (+3)`)}
   if(wind>10){
     if(windDir==='out'){score+=10;factors.push(`💨 Viento ${wind}mph hacia jardín — favorece HR (+10)`)}
-    else if(windDir==='in'){score-=10;factors.push(`💨 Viento ${wind}mph hacia plato — suprime HR (−10)`)}
+    else if(windDir==='in'){score-=10;factors.push(`💨 Viento ${wind}mph hacia plato — suprime HR (-10)`)}
     else factors.push(`💨 Viento cruzado ${wind}mph — neutro`);
   }
   if(sport==='MLB'){
     const aces=['ace','cy young','gerrit','verlander','scherzer','degrom','buehler','ohtani'];
     const aH=pitH&&aces.some(a=>pitH.toLowerCase().includes(a));
     const aA=pitA&&aces.some(a=>pitA.toLowerCase().includes(a));
-    if(aH){score-=7;factors.push(`⚾ Pitcher élite local: ${pitH} (−7)`)}
-    if(aA){score-=7;factors.push(`⚾ Pitcher élite visitante: ${pitA} (−7)`)}
+    if(aH){score-=7;factors.push(`⚾ Pitcher élite local: ${pitH} (-7)`)}
+    if(aA){score-=7;factors.push(`⚾ Pitcher élite visitante: ${pitA} (-7)`)}
     if(!aH&&!aA&&pitH)factors.push('⚾ Pitchers regulares — sin ajuste mayor');
     if(!pitH)factors.push('⚾ Sin datos de pitchers ingresados');
   }
   const avgs={MLB:9,NBA:220,NFL:48,NHL:6,SOC:2.5};
   const avg=avgs[sport];
   if(total>avg*1.1){score+=5;factors.push(`📊 Total ${total} > promedio histórico ${avg} (+5)`)}
-  else if(total<avg*0.9){score-=5;factors.push(`📊 Total ${total} < promedio histórico ${avg} (−5)`)}
+  else if(total<avg*0.9){score-=5;factors.push(`📊 Total ${total} < promedio histórico ${avg} (-5)`)}
   const isOver=score>50;
   const conf=Math.min(95,Math.max(51,Math.abs(score-50)*2+50));
   const rec=isOver?'OVER':'UNDER';
@@ -3287,7 +3293,7 @@ function calcArb(){
     const gap = (impliedSum - 1) * 100;
     profitBox.innerHTML = `
       <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Sin oportunidad — margen de las casas</div>
-      <div style="font-size:28px;font-weight:900;color:var(--red)">−${gap.toFixed(2)}%</div>
+      <div style="font-size:28px;font-weight:900;color:var(--red)">-${gap.toFixed(2)}%</div>
       <div style="font-size:11px;color:var(--muted);margin-top:4px">
         Necesitas reducir la suma implícita en ${gap.toFixed(2)}pp para encontrar arb</div>`;
   }
@@ -3361,7 +3367,7 @@ function renderArbHistory(){
       <span class="${c.isArb?'arb-tag-yes':'arb-tag-no'}">${c.isArb?'ARB':'NO ARB'}</span>
       <span style="flex:1;color:var(--muted)">${c.odds.map(o=>`${o.outcome} ${o.book?'@'+o.book:''}`).join(' · ')}</span>
       <span style="color:${c.isArb?'var(--green)':'var(--red)'};font-weight:700;margin-right:6px">
-        ${c.isArb?'+$'+c.profit.toFixed(2):'−'+((c.impliedSum-1)*100).toFixed(2)+'%'}</span>
+        ${c.isArb?'+$'+c.profit.toFixed(2):'-'+((c.impliedSum-1)*100).toFixed(2)+'%'}</span>
       <span style="color:var(--muted);font-size:10px">${c.time}</span>
     </div>`).join('');
 }
@@ -3541,7 +3547,7 @@ function renderAlertasPanel(){
         <div class="alerta-metrics">
           <span class="alerta-metric" style="color:${cc}">Conf ${p.confidence}%</span>
           <span class="alerta-metric" style="color:${p.ev>0?'var(--green)':'var(--red)'}">${p.ev>0?'+':''}${p.ev}% EV</span>
-          ${(p.lineShift||0)<=−10?`<span class="alerta-metric" style="color:var(--amber)">Línea ${p.lineShift}</span>`:''}
+          ${(p.lineShift||0)<=-10?`<span class="alerta-metric" style="color:var(--amber)">Línea ${p.lineShift}</span>`:''}
           <span class="alerta-metric" style="color:var(--muted)">Público ${p.publicPct}%</span>
           <span class="alerta-metric">H2H ${p.h2hW}-${p.h2hL}</span>
         </div>
@@ -3653,14 +3659,14 @@ function renderRacha(){
   // ── Odds type breakdown
   function oddsCategory(o){
     const n = parseInt(o)||0;
-    if(n <= -151) return 'Gran favorito (−151 o más)';
-    if(n <= -111) return 'Favorito (−111 a −150)';
-    if(n <= 110)  return 'Pick neutro (−110 a +110)';
+    if(n <= -151) return 'Gran favorito (-151 o más)';
+    if(n <= -111) return 'Favorito (-111 a -150)';
+    if(n <= 110)  return 'Pick neutro (-110 a +110)';
     if(n <= 150)  return 'Perro leve (+111 a +150)';
     return 'Underdog (+151 o más)';
   }
-  const oddsOrder = ['Gran favorito (−151 o más)','Favorito (−111 a −150)',
-    'Pick neutro (−110 a +110)','Perro leve (+111 a +150)','Underdog (+151 o más)'];
+  const oddsOrder = ['Gran favorito (-151 o más)','Favorito (-111 a -150)',
+    'Pick neutro (-110 a +110)','Perro leve (+111 a +150)','Underdog (+151 o más)'];
   const byOdds = {};
   oddsOrder.forEach(k=>byOdds[k]={W:0,L:0});
   settled.forEach(h=>{ const k=oddsCategory(h.odds||0); if(byOdds[k]) byOdds[k][h.result]++; });
