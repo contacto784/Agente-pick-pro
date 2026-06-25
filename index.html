@@ -1830,15 +1830,23 @@ function americanOddsString(n){
 function mapOddsEventToPick(sportCode, event, idx){
   const home=event.home_team;
   const away=event.away_team;
-  const book=(event.bookmakers||[])[0];
-  const h2h=book?.markets?.find(m=>m.key==='h2h');
-  const homeOutcome=h2h?.outcomes?.find(o=>o.name===home);
-  const awayOutcome=h2h?.outcomes?.find(o=>o.name===away);
-  if(!homeOutcome||!awayOutcome) return null;
+  const books=event.bookmakers||[];
+  if(!books.length) return null;
 
-  const pickIsHome=homeOutcome.price < awayOutcome.price; // favorito = menor cuota
+  // Mejor cuota de cada equipo entre todas las casas (la más alta = mejor pago)
+  let bestHome=null, bestAway=null;
+  books.forEach(bk=>{
+    const h2h=bk.markets?.find(m=>m.key==='h2h');
+    const ho=h2h?.outcomes?.find(o=>o.name===home);
+    const ao=h2h?.outcomes?.find(o=>o.name===away);
+    if(ho && (bestHome===null || ho.price>bestHome)) bestHome=ho.price;
+    if(ao && (bestAway===null || ao.price>bestAway)) bestAway=ao.price;
+  });
+  if(bestHome===null||bestAway===null) return null;
+
+  const pickIsHome=bestHome < bestAway; // favorito = menor cuota
   const pick=pickIsHome?home:away;
-  const pickPrice=pickIsHome?homeOutcome.price:awayOutcome.price;
+  const pickPrice=pickIsHome?bestHome:bestAway;
   const odds=americanOddsString(pickPrice);
 
   // Confianza estimada a partir de la cuota del favorito (heurística simple)
