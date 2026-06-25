@@ -1905,11 +1905,13 @@ function generateDemoPicks(){
 }
 
 // Llama al proxy /api/odds para una liga. Devuelve [] si falla (no lanza error).
+let oddsApiCreditsRemaining = null;
 async function fetchRealOddsForSport(sportCode){
   try{
     const r=await fetch(`/api/odds?sport=${sportCode}`);
     if(!r.ok) return [];
     const data=await r.json();
+    if(data.requestsRemaining!=null) oddsApiCreditsRemaining=parseInt(data.requestsRemaining);
     return Array.isArray(data.games) ? data.games : [];
   }catch(e){
     return [];
@@ -1963,6 +1965,9 @@ function loadPicks(){
     renderDashboard();
     fillCompareSelects();
     document.getElementById('auto-status').textContent=isDemoMode?'● Demo (sin datos reales)':'● Datos reales';
+    if(oddsApiCreditsRemaining!=null && oddsApiCreditsRemaining<50){
+      toast(`⚠ Quedan ${oddsApiCreditsRemaining} créditos de The Odds API este mes`);
+    }
     if(notifsEnabled) schedulePickAlerts();
     generateValueAlerts();
   }).catch(()=>{
