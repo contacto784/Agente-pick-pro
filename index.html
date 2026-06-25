@@ -1909,7 +1909,7 @@ async function fetchRealOddsForSport(sportCode){
 }
 
 async function generateRealPicks(){
-  const sports=['NFL','NBA','MLB','NHL'];
+  const sports=['MLB','SOC','NFL','NBA','NHL'];
   const results=await Promise.all(sports.map(fetchRealOddsForSport));
   const allEvents=[];
   results.forEach((events,si)=>{
