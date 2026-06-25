@@ -1,4 +1,4 @@
-// Proxy serverless: oculta la API key y reenvía la petición a The Odds API
+// Proxy serverless: oculta la API key y reenvía la petición de scores a The Odds API
 // Variable de entorno requerida en Vercel: ODDS_API_KEY
 
 const SPORT_KEYS = {
@@ -16,19 +16,14 @@ export default async function handler(req, res) {
     return;
   }
 
-  const sportParam = (req.query.sport || 'NFL').toUpperCase();
+  const sportParam = (req.query.sport || 'MLB').toUpperCase();
   const sportKey = SPORT_KEYS[sportParam];
   if (!sportKey) {
     res.status(400).json({ error: `Liga no soportada: ${sportParam}` });
     return;
   }
 
-  // markets configurable vía query (?markets=h2h,spreads,totals); default solo h2h para ahorrar créditos
-  const allowedMarkets = ['h2h', 'spreads', 'totals'];
-  const requested = (req.query.markets || 'h2h').split(',').map(m => m.trim()).filter(m => allowedMarkets.includes(m));
-  const markets = requested.length ? requested.join(',') : 'h2h';
-
-  const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?apiKey=${apiKey}&regions=us&markets=${markets}&oddsFormat=american&dateFormat=iso`;
+  const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/scores/?apiKey=${apiKey}&daysFrom=1`;
 
   try {
     const apiRes = await fetch(url);
@@ -42,7 +37,7 @@ export default async function handler(req, res) {
     }
 
     const data = await apiRes.json();
-    res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=300'); // cache 10 min
+    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=30'); // cache 1 min, los scores cambian rápido
     res.status(200).json({ games: data, requestsRemaining: remaining, requestsUsed: used });
   } catch (err) {
     res.status(500).json({ error: 'Fallo al conectar con The Odds API', detail: String(err) });
