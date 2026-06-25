@@ -1019,6 +1019,7 @@ input[type=range]{padding:5px 0;cursor:pointer;accent-color:var(--gold)}
   <div class="toolbar">
     <h2>Picks del Día</h2>
     <span class="auto-status" id="auto-status">● Cargando…</span>
+    <span id="demo-badge" style="display:none;font-size:11px;padding:5px 12px;border-radius:20px;background:#3a1a00;color:#ffae42;font-weight:700;border:1px solid #ffae4255">⚠ DEMO</span>
     <button class="btn btn-ghost btn-sm" onclick="loadPicks()">↻ Actualizar</button>
   </div>
   <div class="stats-strip" id="picks-stats"></div>
@@ -1802,8 +1803,69 @@ function showTab(name){
   if(name==='futures')renderFutures();
 }
 
-// ── PICKS GENERATION (enhanced with form/H2H)
-function generatePicks(){
+// ── PICKS GENERATION — datos reales vía proxy /api/odds, con fallback demo
+const ODDS_CACHE_MINUTES = 10;
+let isDemoMode = false;
+
+// Genera las métricas analíticas (forma, H2H, % público) de forma determinista
+// por partido real, ya que The Odds API no provee estos datos.
+function analyticsForMatchup(home, away, seedBase){
+  const form=Array.from({length:5},(_,j)=>sr(seedBase+j*37)>.42?'W':'L');
+  const h2hW=Math.floor(sr(seedBase+300)*5)+1;
+  const h2hL=Math.floor(sr(seedBase+400)*4)+1;
+  const homePct=Math.round(40+sr(seedBase+500)*45);
+  const awayPct=Math.round(30+sr(seedBase+600)*45);
+  const publicPct=Math.round(35+sr(seedBase+800)*52);
+  const formWins=form.filter(r=>r==='W').length;
+  const streakCount=Math.max(formWins,5-formWins);
+  const isHot=formWins>=3;
+  return{form,h2hW,h2hL,homePct,awayPct,publicPct,fadeSignal:publicPct>=65,streakCount,isHot};
+}
+
+function americanOddsString(n){
+  return n>0?`+${Math.round(n)}`:`${Math.round(n)}`;
+}
+
+// Convierte un evento de The Odds API en un pick con la forma que usa renderPicks()
+function mapOddsEventToPick(sportCode, event, idx){
+  const home=event.home_team;
+  const away=event.away_team;
+  const book=(event.bookmakers||[])[0];
+  const h2h=book?.markets?.find(m=>m.key==='h2h');
+  const homeOutcome=h2h?.outcomes?.find(o=>o.name===home);
+  const awayOutcome=h2h?.outcomes?.find(o=>o.name===away);
+  if(!homeOutcome||!awayOutcome) return null;
+
+  const pickIsHome=homeOutcome.price < awayOutcome.price; // favorito = menor cuota
+  const pick=pickIsHome?home:away;
+  const pickPrice=pickIsHome?homeOutcome.price:awayOutcome.price;
+  const odds=americanOddsString(pickPrice);
+
+  // Confianza estimada a partir de la cuota del favorito (heurística simple)
+  const impliedProb=pickPrice<0 ? Math.abs(pickPrice)/(Math.abs(pickPrice)+100) : 100/(pickPrice+100);
+  const conf=Math.round(Math.min(92,Math.max(52,impliedProb*100)));
+
+  const p=conf/100;
+  const decOdds=pickPrice>0?1+pickPrice/100:1+100/Math.abs(pickPrice);
+  const ev=parseFloat(((p*decOdds-(1-p))*100).toFixed(1));
+
+  const seedBase=daySeed()+idx*991;
+  const a=analyticsForMatchup(home,away,seedBase);
+  const time=event.commence_time
+    ? new Date(event.commence_time).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})
+    : '—';
+
+  return{
+    id:event.id||`p${idx}`, sport:sportCode, home, away, pick, confidence:conf,
+    odds, openOdds:pickPrice, lineShift:0, time,
+    form:a.form, h2hW:a.h2hW, h2hL:a.h2hL, homePct:a.homePct, awayPct:a.awayPct,
+    isHome:pickIsHome, ev, publicPct:a.publicPct, fadeSignal:a.fadeSignal,
+    streakCount:a.streakCount, isHot:a.isHot, result:null
+  };
+}
+
+// Fallback demo — mismo generador sintético de antes, usado SOLO si la API real falla
+function generateDemoPicks(){
   const seed=daySeed();
   const keys=Object.keys(S);
   const times=['12:05 PM','1:10 PM','3:40 PM','4:08 PM','6:10 PM','7:08 PM','7:40 PM','8:10 PM','9:40 PM'];
@@ -1821,46 +1883,88 @@ function generatePicks(){
     if(ob<.45)odds='-'+Math.round(sr(seed+i*97)*50+105);
     else if(ob<.85)odds='+'+Math.round(sr(seed+i*113)*80+110);
     else odds='-'+Math.round(sr(seed+i*127)*100+150);
-    // Form last 5 games
-    const form=Array.from({length:5},(_,j)=>sr(seed+i*200+j*37)>.42?'W':'L');
-    // H2H
-    const h2hW=Math.floor(sr(seed+i*300)*5)+1;
-    const h2hL=Math.floor(sr(seed+i*400)*4)+1;
-    // Home/away win %
-    const homePct=Math.round(40+sr(seed+i*500)*45);
-    const awayPct=Math.round(30+sr(seed+i*600)*45);
+    const a=analyticsForMatchup(home,away,seed+i*200);
     const isHome=pick===home;
-    // Expected Value
     const p=conf/100;
     const decOdds=parseInt(odds)>0?1+parseInt(odds)/100:1+100/Math.abs(parseInt(odds));
     const ev=parseFloat(((p*decOdds-(1-p))*100).toFixed(1));
-    // Opening line (simulated)
     const lineShift=Math.round((sr(seed+i*700)-.45)*30);
     const openOdds=parseInt(odds)+lineShift;
-    // Public betting % + Fade signal
-    const publicPct=Math.round(35+sr(seed+i*800)*52);
-    const fadeSignal=publicPct>=65;
-    // Team streak (based on form)
-    const formWins=form.filter(r=>r==='W').length;
-    const streakCount=Math.max(formWins,5-formWins);
-    const isHot=formWins>=3;
-    return{id:`p${seed}-${i}`,sport:sk,home,away,pick,confidence:conf,odds,openOdds,lineShift,
-      time:times[i%times.length],form,h2hW,h2hL,homePct,awayPct,isHome,ev,
-      publicPct,fadeSignal,streakCount,isHot,result:null};
+    return{id:`demo-p${seed}-${i}`,sport:sk,home,away,pick,confidence:conf,odds,openOdds,lineShift,
+      time:times[i%times.length],form:a.form,h2hW:a.h2hW,h2hL:a.h2hL,homePct:a.homePct,awayPct:a.awayPct,
+      isHome,ev,publicPct:a.publicPct,fadeSignal:a.fadeSignal,streakCount:a.streakCount,isHot:a.isHot,result:null};
   });
+}
+
+// Llama al proxy /api/odds para una liga. Devuelve [] si falla (no lanza error).
+async function fetchRealOddsForSport(sportCode){
+  try{
+    const r=await fetch(`/api/odds?sport=${sportCode}`);
+    if(!r.ok) return [];
+    const data=await r.json();
+    return Array.isArray(data.games) ? data.games : [];
+  }catch(e){
+    return [];
+  }
+}
+
+async function generateRealPicks(){
+  const sports=['NFL','NBA','MLB','NHL'];
+  const results=await Promise.all(sports.map(fetchRealOddsForSport));
+  const allEvents=[];
+  results.forEach((events,si)=>{
+    events.forEach(ev=>allEvents.push({sport:sports[si],event:ev}));
+  });
+  if(allEvents.length===0) return null; // señal de que hay que usar demo
+
+  // Filtro: solo partidos dentro de las próximas 26 horas
+  const now=Date.now();
+  const windowMs=26*60*60*1000;
+  const upcoming=allEvents.filter(({event})=>{
+    if(!event.commence_time) return true;
+    const t=new Date(event.commence_time).getTime();
+    return t>=now-60*60*1000 && t<=now+windowMs;
+  });
+  const pool=upcoming.length?upcoming:allEvents;
+
+  const picksOut=[];
+  pool.slice(0,9).forEach(({sport,event},idx)=>{
+    const mapped=mapOddsEventToPick(sport,event,idx);
+    if(mapped) picksOut.push(mapped);
+  });
+  return picksOut.length?picksOut:null;
+}
+
+function setDemoBadge(active){
+  isDemoMode=active;
+  const el=document.getElementById('demo-badge');
+  if(el) el.style.display=active?'inline-flex':'none';
 }
 
 function loadPicks(){
   document.getElementById('auto-status').textContent='● Cargando…';
-  setTimeout(()=>{
-    picks=generatePicks();
+  generateRealPicks().then(real=>{
+    if(real && real.length){
+      picks=real;
+      setDemoBadge(false);
+    }else{
+      picks=generateDemoPicks();
+      setDemoBadge(true);
+    }
     renderPicks();
     renderDashboard();
     fillCompareSelects();
-    document.getElementById('auto-status').textContent='● Auto-cargado';
+    document.getElementById('auto-status').textContent=isDemoMode?'● Demo (sin datos reales)':'● Datos reales';
     if(notifsEnabled) schedulePickAlerts();
     generateValueAlerts();
-  },500);
+  }).catch(()=>{
+    picks=generateDemoPicks();
+    setDemoBadge(true);
+    renderPicks();
+    renderDashboard();
+    fillCompareSelects();
+    document.getElementById('auto-status').textContent='● Demo (sin datos reales)';
+  });
 }
 
 // ── LIVE CLOCK
