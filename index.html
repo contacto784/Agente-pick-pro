@@ -1852,7 +1852,7 @@ function mapOddsEventToPick(sportCode, event, idx){
   const seedBase=daySeed()+idx*991;
   const a=analyticsForMatchup(home,away,seedBase);
   const time=event.commence_time
-    ? new Date(event.commence_time).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})
+    ? new Date(event.commence_time).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZone:'America/Los_Angeles'})
     : '—';
 
   return{
