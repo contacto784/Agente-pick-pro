@@ -895,6 +895,7 @@ input[type=range]{padding:5px 0;cursor:pointer;accent-color:var(--gold)}
   <button class="nav-tab" onclick="showTab('historial')">📋 Historial</button>
   <button class="nav-tab" onclick="showTab('sim')">🧪 Sim</button>
   <button class="nav-tab" onclick="showTab('predictor')">🔮 Predictor</button>
+  <button class="nav-tab" onclick="showTab('teamstats')">📋 Stats Equipos</button>
   <button class="nav-tab" onclick="showTab('racha')">📈 Mi Racha</button>
   <button class="nav-tab" onclick="showTab('futures')">🏆 Futures</button>
   <button class="nav-tab" onclick="showTab('arb')">🔀 Arbitraje</button>
@@ -1745,6 +1746,22 @@ input[type=range]{padding:5px 0;cursor:pointer;accent-color:var(--gold)}
   </div>
 </section>
 
+<!-- TEAM STATS -->
+<section class="section" id="sec-teamstats">
+  <div class="sec-title">📋 Stats de Equipos MLB</div>
+  <div class="sec-sub">Datos reales de la temporada — batting avg, ERA, WHIP y más</div>
+
+  <div class="card">
+    <div class="form-group">
+      <label>Buscar equipo</label>
+      <input type="text" id="teamstats-search" placeholder="Ej: Astros, Yankees, Dodgers..." oninput="renderTeamStats()">
+    </div>
+    <div id="teamstats-status" style="font-size:12px;color:var(--muted);margin-top:6px"></div>
+  </div>
+
+  <div id="teamstats-list" style="margin-top:14px"></div>
+</section>
+
 </main>
 
 <script>
@@ -1790,13 +1807,14 @@ function showTab(name){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('sec-'+name).classList.add('active');
-  const order=['dashboard','picks','monitor','comparar','ou','kelly','historial','sim','predictor','racha','futures','arb','alertas'];
+  const order=['dashboard','picks','monitor','comparar','ou','kelly','historial','sim','predictor','teamstats','racha','futures','arb','alertas'];
   document.querySelectorAll('.nav-tab')[order.indexOf(name)].classList.add('active');
   if(name==='monitor')startMonitor();
   if(name==='historial'){renderHistorial();renderWeekly()}
   if(name==='kelly'){calcKelly();renderParlayLegs();calcParlay();calcBankroll()}
   if(name==='sim')renderSimPreview();
   if(name==='predictor')initPredictor();
+  if(name==='teamstats')loadTeamStats();
   if(name==='racha')renderRacha();
   if(name==='alertas')renderAlertasPanel();
   if(name==='arb')initArb();
@@ -1930,6 +1948,60 @@ async function fetchRealOddsForSport(sportCode){
     return [];
   }
 }
+
+// ── TEAM STATS — datos reales de ClearSports API via proxy /api/teamstats
+let teamStatsCache = null;
+async function loadTeamStats(){
+  const statusEl=document.getElementById('teamstats-status');
+  if(teamStatsCache){
+    renderTeamStats();
+    return;
+  }
+  statusEl.textContent='Cargando stats reales…';
+  try{
+    const r=await fetch('/api/teamstats');
+    if(!r.ok){
+      statusEl.textContent='No se pudieron cargar las stats. Intenta de nuevo.';
+      return;
+    }
+    const data=await r.json();
+    teamStatsCache=Array.isArray(data.baseball_team_stats)?data.baseball_team_stats:[];
+    statusEl.textContent=`${teamStatsCache.length} equipos cargados — temporada actual`;
+    renderTeamStats();
+  }catch(e){
+    statusEl.textContent='Error de conexión. Intenta de nuevo.';
+  }
+}
+
+function renderTeamStats(){
+  const listEl=document.getElementById('teamstats-list');
+  if(!teamStatsCache){ listEl.innerHTML=''; return; }
+  const q=(document.getElementById('teamstats-search')?.value||'').trim().toLowerCase();
+  const filtered=teamStatsCache.filter(t=>
+    !q || t.team_name.toLowerCase().includes(q) || t.team_abbreviation.toLowerCase().includes(q)
+  );
+  if(!filtered.length){
+    listEl.innerHTML='<div style="color:var(--muted);text-align:center;padding:20px">Sin resultados</div>';
+    return;
+  }
+  listEl.innerHTML=filtered.map(t=>`
+    <div class="card" style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-weight:800;font-size:15px">${t.team_name}</div>
+        <div style="font-size:12px;color:var(--muted)">${t.wins}-${t.losses}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:12px">
+        <div><span style="color:var(--muted)">AVG</span> ${t.batting_avg}</div>
+        <div><span style="color:var(--muted)">OBP</span> ${t.on_base_pct}</div>
+        <div><span style="color:var(--muted)">SLG</span> ${t.slug_pct}</div>
+        <div><span style="color:var(--muted)">ERA</span> ${t.era}</div>
+        <div><span style="color:var(--muted)">WHIP</span> ${t.whip}</div>
+        <div><span style="color:var(--muted)">HR</span> ${t.home_runs}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
 
 async function generateRealPicks(){
   const sports=['MLB','SOC','NFL','NBA','NHL'];
