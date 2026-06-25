@@ -1827,31 +1827,44 @@ function americanOddsString(n){
 }
 
 // Convierte un evento de The Odds API en un pick con la forma que usa renderPicks()
+function americanToImpliedProb(price){
+  return price<0 ? Math.abs(price)/(Math.abs(price)+100) : 100/(price+100);
+}
+
 function mapOddsEventToPick(sportCode, event, idx){
   const home=event.home_team;
   const away=event.away_team;
   const books=event.bookmakers||[];
   if(!books.length) return null;
 
-  // Mejor cuota de cada equipo entre todas las casas (la más alta = mejor pago)
+  // Mejor cuota de cada equipo (para mostrar dónde conviene apostar) y
+  // probabilidad implícita promedio entre casas (para determinar el favorito real / consenso)
   let bestHome=null, bestAway=null;
+  let probHomeSum=0, probAwaySum=0, nHome=0, nAway=0;
   books.forEach(bk=>{
     const h2h=bk.markets?.find(m=>m.key==='h2h');
     const ho=h2h?.outcomes?.find(o=>o.name===home);
     const ao=h2h?.outcomes?.find(o=>o.name===away);
-    if(ho && (bestHome===null || ho.price>bestHome)) bestHome=ho.price;
-    if(ao && (bestAway===null || ao.price>bestAway)) bestAway=ao.price;
+    if(ho){
+      if(bestHome===null || ho.price>bestHome) bestHome=ho.price;
+      probHomeSum+=americanToImpliedProb(ho.price); nHome++;
+    }
+    if(ao){
+      if(bestAway===null || ao.price>bestAway) bestAway=ao.price;
+      probAwaySum+=americanToImpliedProb(ao.price); nAway++;
+    }
   });
   if(bestHome===null||bestAway===null) return null;
 
-  const pickIsHome=bestHome < bestAway; // favorito = menor cuota
+  const avgProbHome=probHomeSum/nHome;
+  const avgProbAway=probAwaySum/nAway;
+  const pickIsHome=avgProbHome > avgProbAway; // favorito real = mayor probabilidad de consenso
   const pick=pickIsHome?home:away;
-  const pickPrice=pickIsHome?bestHome:bestAway;
+  const pickPrice=pickIsHome?bestHome:bestAway; // mejor cuota disponible del lado elegido
   const odds=americanOddsString(pickPrice);
 
-  // Confianza estimada a partir de la cuota del favorito (heurística simple)
-  const impliedProb=pickPrice<0 ? Math.abs(pickPrice)/(Math.abs(pickPrice)+100) : 100/(pickPrice+100);
-  const conf=Math.round(Math.min(92,Math.max(52,impliedProb*100)));
+  // Confianza basada en el consenso de las 9 casas, no en una sola cuota aislada
+  const conf=Math.round(Math.min(92,Math.max(52,(pickIsHome?avgProbHome:avgProbAway)*100)));
 
   const p=conf/100;
   const decOdds=pickPrice>0?1+pickPrice/100:1+100/Math.abs(pickPrice);
