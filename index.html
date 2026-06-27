@@ -2493,7 +2493,7 @@ function genScores(){
 async function startMonitor(){
   await renderMonitor();
   renderLineMovement();
-  if(!monitorInterval)monitorInterval=setInterval(async()=>{await renderMonitor();checkAlerts()},30000);
+  if(!monitorInterval)monitorInterval=setInterval(async()=>{await renderMonitor();checkAlerts()},180000);
 }
 
 function renderLineMovement(){
