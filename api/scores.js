@@ -37,7 +37,7 @@ export default async function handler(req, res) {
     }
 
     const data = await apiRes.json();
-    res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=30'); // cache 1 min, los scores cambian rápido
+    res.setHeader('Cache-Control', s-maxage=60, stale-while-revalidate=30); // cache 1 min, los scores cambian rápido
     res.status(200).json({ games: data, requestsRemaining: remaining, requestsUsed: used });
   } catch (err) {
     res.status(500).json({ error: 'Fallo al conectar con The Odds API', detail: String(err) });
